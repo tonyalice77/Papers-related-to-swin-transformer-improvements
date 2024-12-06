@@ -112,17 +112,25 @@ class HSFPN(nn.Module):
              for _ in range(len(in_channels_list) - 1)]
         )
 
+        # 新增：直接从 Stage 4 融合到 Stage 2 的模块
+        self.direct_fusion = SelectFeatureFusion(out_channels, out_channels)
+
     def forward(self, inputs):
         # 特征选择
         inputs = [lateral(input) for input, lateral in zip(inputs, self.lateral_layers)]
         
         # 特征融合
-        x = inputs[-1]  # 最高层特征
+        x = inputs[-1]  # 最高层特征（Stage 4）
         for i in range(len(inputs) - 2, -1, -1):
-            x = self.output_layers[i](x, inputs[i])
+            # 如果是 Stage 2 的融合，还需直接加入 Stage 4 的特征
+            if i == 0:
+                x = self.direct_fusion(inputs[-1], inputs[i])  # 直接融合 Stage 4 到 Stage 2
+            else:
+                x = self.output_layers[i](x, inputs[i])
         
-        # x 现在是融合了所有特征的输出
+        # x 是融合所有特征后的最终输出
         return x
+
 
 class EnhancedSwinTransformer(nn.Module):
     def __init__(self, swin_transformer, num_classes, out_channels=256):
